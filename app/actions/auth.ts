@@ -43,7 +43,7 @@ export async function registerUser(
 
   // 2. student_profiles テーブルにプロフィールを保存
   const { data: profile, error: profileError } = await supabase
-    .from("student_profiles")
+    .from("shinro_student_profiles")
     .insert({
       user_id: authData.user.id,
       email: formData.email,
@@ -127,7 +127,7 @@ export async function getStudentProfile(): Promise<StudentProfile | null> {
   if (!user) return null;
 
   const { data, error } = await supabase
-    .from("student_profiles")
+    .from("shinro_student_profiles")
     .select("*")
     .eq("user_id", user.id)
     .single();
@@ -158,7 +158,7 @@ export async function verifyEmailToken(
 
   // トークンでプロフィールを検索
   const { data: profile, error } = await adminSupabase
-    .from("student_profiles")
+    .from("shinro_student_profiles")
     .select("*")
     .eq("verification_token", token)
     .eq("email_verified", false)
@@ -173,7 +173,7 @@ export async function verifyEmailToken(
 
   // 認証完了に更新
   const { error: updateError } = await adminSupabase
-    .from("student_profiles")
+    .from("shinro_student_profiles")
     .update({ email_verified: true })
     .eq("id", profile.id);
 

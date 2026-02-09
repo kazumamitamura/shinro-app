@@ -4,7 +4,8 @@ import type { ShinroRequest } from "@/lib/types";
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "admin@example.com";
-const FROM_EMAIL = "進路書類申請システム <onboarding@resend.dev>";
+const FROM_EMAIL =
+  process.env.RESEND_FROM || "進路書類申請システム <onboarding@resend.dev>";
 
 function docTypeLabel(docType: string): string {
   return docType === "survey_report" ? "調査書" : "学校推薦書";
@@ -36,7 +37,12 @@ export async function sendVerificationEmail(
   verifyUrl: string
 ): Promise<void> {
   try {
-    await resend.emails.send({
+    console.log("[Email] Sending verification email:", {
+      to: email,
+      from: FROM_EMAIL,
+      apiKeyPrefix: process.env.RESEND_API_KEY?.slice(0, 10) + "...",
+    });
+    const { data, error } = await resend.emails.send({
       from: FROM_EMAIL,
       to: [email],
       subject: "【進路書類申請】メールアドレスの確認",
@@ -65,8 +71,13 @@ export async function sendVerificationEmail(
         </div>
       `,
     });
+    if (error) {
+      console.error("[Email] Resend API error (verification):", JSON.stringify(error));
+    } else {
+      console.log("[Email] Verification email sent successfully:", data);
+    }
   } catch (error) {
-    console.error("Failed to send verification email:", error);
+    console.error("[Email] Failed to send verification email:", error);
   }
 }
 

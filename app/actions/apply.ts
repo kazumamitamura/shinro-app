@@ -67,7 +67,7 @@ export async function getProfileForApply(): Promise<{
   if (!user) return { profile: null, email: null };
 
   const { data } = await supabase
-    .from("student_profiles")
+    .from("shinro_student_profiles")
     .select("*")
     .eq("user_id", user.id)
     .single();
@@ -100,7 +100,7 @@ export async function submitRequest(
 
   // メール認証チェック
   const { data: profile } = await supabase
-    .from("student_profiles")
+    .from("shinro_student_profiles")
     .select("email_verified, email")
     .eq("user_id", user.id)
     .single();
