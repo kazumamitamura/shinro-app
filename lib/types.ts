@@ -1,3 +1,19 @@
+// ===== 共通定数 =====
+
+export const CLASS_OPTIONS = [
+  "LIA",
+  "LIB",
+  "CA",
+  "CB",
+  "CC",
+  "CD",
+  "E",
+  "M",
+  "A",
+] as const;
+
+export const STUDENT_NUMBERS = Array.from({ length: 45 }, (_, i) => i + 1);
+
 // ===== shinro_requests table types =====
 
 export type DocType = "survey_report" | "recommendation";
@@ -17,6 +33,20 @@ export interface ShinroRequest {
   created_at: string;
 }
 
+// ===== student_profiles table types =====
+
+export interface StudentProfile {
+  id: string;
+  user_id: string;
+  email: string;
+  student_class: string;
+  student_number: number;
+  student_name: string;
+  email_verified: boolean;
+  verification_token: string;
+  created_at: string;
+}
+
 // ===== Form / Action types =====
 
 export interface ApplyFormData {
@@ -25,6 +55,14 @@ export interface ApplyFormData {
   student_name: string;
   doc_type: DocType;
   quantity: number;
+}
+
+export interface RegisterFormData {
+  email: string;
+  password: string;
+  student_class: string;
+  student_number: number;
+  student_name: string;
 }
 
 export interface FeeCalculationResult {
@@ -40,6 +78,3 @@ export interface ActionResult {
   message: string;
   data?: ShinroRequest;
 }
-
-// Table name constant
-export const SHINRO_REQUESTS_TABLE = "shinro_requests" as const;

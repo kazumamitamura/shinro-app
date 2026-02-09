@@ -2,22 +2,22 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Send, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
+import {
+  Send,
+  Loader2,
+  AlertCircle,
+  CheckCircle2,
+  UserCheck,
+} from "lucide-react";
 import FeeDisplay from "@/components/FeeDisplay";
-import { previewFee, submitRequest } from "@/app/actions/apply";
+import {
+  previewFee,
+  submitRequest,
+  getProfileForApply,
+} from "@/app/actions/apply";
 import type { DocType, FeeCalculationResult, ApplyFormData } from "@/lib/types";
 import { calculateFee } from "@/lib/fee";
-
-const CLASS_OPTIONS = [
-  "3-1",
-  "3-2",
-  "3-3",
-  "3-4",
-  "3-5",
-  "3-6",
-  "3-7",
-  "3-8",
-];
+import { CLASS_OPTIONS, STUDENT_NUMBERS } from "@/lib/types";
 
 export default function ApplyPage() {
   const router = useRouter();
@@ -28,6 +28,10 @@ export default function ApplyPage() {
   const [studentName, setStudentName] = useState("");
   const [docType, setDocType] = useState<DocType | "">("");
   const [quantity, setQuantity] = useState<number | "">(1);
+
+  // Profile pre-fill state
+  const [profileLoaded, setProfileLoaded] = useState(false);
+  const [hasProfile, setHasProfile] = useState(false);
 
   // Fee state
   const [feeResult, setFeeResult] = useState<FeeCalculationResult | null>(null);
@@ -41,10 +45,16 @@ export default function ApplyPage() {
     message: string;
   } | null>(null);
 
-  // 初回ロード: 過去の調査書申請を確認
+  // 初回ロード: プロフィール取得して自動入力
   useEffect(() => {
-    previewFee("survey_report", 0).then(() => {
-      // We just need to check hasPriorSurveyRequest - we'll do it via previewFee
+    getProfileForApply().then(({ profile }) => {
+      if (profile) {
+        setStudentClass(profile.student_class);
+        setStudentNumber(profile.student_number);
+        setStudentName(profile.student_name);
+        setHasProfile(true);
+      }
+      setProfileLoaded(true);
     });
   }, []);
 
@@ -161,9 +171,15 @@ export default function ApplyPage() {
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* カード: 生徒情報 */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-          <h2 className="text-sm font-semibold text-gray-900 mb-4">
-            生徒情報
-          </h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-semibold text-gray-900">生徒情報</h2>
+            {hasProfile && profileLoaded && (
+              <span className="inline-flex items-center gap-1 text-xs text-success bg-success-light px-2 py-1 rounded-full">
+                <UserCheck className="w-3 h-3" />
+                自動入力済み
+              </span>
+            )}
+          </div>
           <div className="space-y-4">
             {/* クラス */}
             <div>
@@ -177,8 +193,11 @@ export default function ApplyPage() {
                 id="student_class"
                 value={studentClass}
                 onChange={(e) => setStudentClass(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary bg-white"
+                className={`w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary bg-white ${
+                  hasProfile ? "bg-gray-50" : ""
+                }`}
                 required
+                disabled={!profileLoaded}
               >
                 <option value="">選択してください</option>
                 {CLASS_OPTIONS.map((c) => (
@@ -197,19 +216,27 @@ export default function ApplyPage() {
               >
                 出席番号 <span className="text-danger">*</span>
               </label>
-              <input
+              <select
                 id="student_number"
-                type="number"
-                min={1}
-                max={50}
                 value={studentNumber}
                 onChange={(e) =>
-                  setStudentNumber(e.target.value ? Number(e.target.value) : "")
+                  setStudentNumber(
+                    e.target.value ? Number(e.target.value) : ""
+                  )
                 }
-                placeholder="例: 15"
-                className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                className={`w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary bg-white ${
+                  hasProfile ? "bg-gray-50" : ""
+                }`}
                 required
-              />
+                disabled={!profileLoaded}
+              >
+                <option value="">選択してください</option>
+                {STUDENT_NUMBERS.map((n) => (
+                  <option key={n} value={n}>
+                    {n}番
+                  </option>
+                ))}
+              </select>
             </div>
 
             {/* 生徒氏名 */}
@@ -226,8 +253,11 @@ export default function ApplyPage() {
                 value={studentName}
                 onChange={(e) => setStudentName(e.target.value)}
                 placeholder="例: 田中 太郎"
-                className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                className={`w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary ${
+                  hasProfile ? "bg-gray-50" : ""
+                }`}
                 required
+                disabled={!profileLoaded}
               />
             </div>
           </div>
@@ -268,18 +298,22 @@ export default function ApplyPage() {
               >
                 部数 <span className="text-danger">*</span>
               </label>
-              <input
+              <select
                 id="quantity"
-                type="number"
-                min={1}
-                max={10}
                 value={quantity}
                 onChange={(e) =>
                   setQuantity(e.target.value ? Number(e.target.value) : "")
                 }
-                className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary bg-white"
                 required
-              />
+              >
+                <option value="">選択してください</option>
+                {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+                  <option key={n} value={n}>
+                    {n}部
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
         </div>

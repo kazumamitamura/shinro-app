@@ -6,7 +6,13 @@ import {
   sendRequestNotificationToAdmin,
   sendRequestConfirmationToStudent,
 } from "@/lib/email";
-import type { ApplyFormData, ActionResult, DocType, ShinroRequest } from "@/lib/types";
+import type {
+  ApplyFormData,
+  ActionResult,
+  DocType,
+  ShinroRequest,
+  StudentProfile,
+} from "@/lib/types";
 
 /**
  * クライアント側のプレビュー用に、ユーザーが過去に調査書を申請したかチェックする
@@ -46,6 +52,33 @@ export async function previewFee(docType: DocType, quantity: number) {
 }
 
 /**
+ * ログイン中のユーザーのプロフィールを取得（申請フォーム自動入力用）
+ */
+export async function getProfileForApply(): Promise<{
+  profile: StudentProfile | null;
+  email: string | null;
+}> {
+  const supabase = await createServerSupabaseClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return { profile: null, email: null };
+
+  const { data } = await supabase
+    .from("student_profiles")
+    .select("*")
+    .eq("user_id", user.id)
+    .single();
+
+  return {
+    profile: (data as StudentProfile) ?? null,
+    email: user.email ?? null,
+  };
+}
+
+/**
  * 申請を送信する Server Action
  */
 export async function submitRequest(
@@ -62,6 +95,20 @@ export async function submitRequest(
     return {
       success: false,
       message: "ログインが必要です。",
+    };
+  }
+
+  // メール認証チェック
+  const { data: profile } = await supabase
+    .from("student_profiles")
+    .select("email_verified, email")
+    .eq("user_id", user.id)
+    .single();
+
+  if (!profile || !(profile as { email_verified: boolean }).email_verified) {
+    return {
+      success: false,
+      message: "メール認証が完了していません。登録時に届いたメールを確認してください。",
     };
   }
 
@@ -82,7 +129,11 @@ export async function submitRequest(
 
   // サーバーサイドで正しい料金を計算（改ざん防止）
   const hasPrior = await checkPriorSurveyRequest();
-  const feeResult = calculateFee(formData.doc_type, formData.quantity, hasPrior);
+  const feeResult = calculateFee(
+    formData.doc_type,
+    formData.quantity,
+    hasPrior
+  );
 
   // DBに保存
   const { data, error } = await supabase
@@ -113,16 +164,22 @@ export async function submitRequest(
   // メール送信（非同期で実行、失敗しても申請自体は成功とする）
   sendRequestNotificationToAdmin(typedData);
 
-  // 生徒のメールアドレスを取得して確認メール送信
-  if (user.email) {
-    sendRequestConfirmationToStudent(user.email, typedData);
+  // 生徒のメールアドレスを取得して確認メール送信（申請内容の詳細つき）
+  const studentEmail =
+    (profile as { email: string }).email || user.email;
+  if (studentEmail) {
+    sendRequestConfirmationToStudent(
+      studentEmail,
+      typedData,
+      feeResult.freeApplied
+    );
   }
 
   return {
     success: true,
     message: feeResult.freeApplied
-      ? `申請が完了しました。（※初回無料適用 合計: ${feeResult.totalFee.toLocaleString()}円）`
-      : `申請が完了しました。（合計: ${feeResult.totalFee.toLocaleString()}円）`,
+      ? `申請が完了しました。（※初回無料適用 合計: ${feeResult.totalFee.toLocaleString()}円）確認メールをお送りしました。`
+      : `申請が完了しました。（合計: ${feeResult.totalFee.toLocaleString()}円）確認メールをお送りしました。`,
     data: typedData,
   };
 }

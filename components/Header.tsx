@@ -1,17 +1,49 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { FileText, User, Shield, GraduationCap } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import {
+  FileText,
+  User,
+  Shield,
+  GraduationCap,
+  LogIn,
+  LogOut,
+  UserPlus,
+} from "lucide-react";
+import { getCurrentUser, logoutUser } from "@/app/actions/auth";
 
 const navItems = [
-  { href: "/apply", label: "新規申請", icon: FileText },
-  { href: "/mypage", label: "マイページ", icon: User },
-  { href: "/admin", label: "管理画面", icon: Shield },
+  { href: "/apply", label: "新規申請", icon: FileText, auth: true },
+  { href: "/mypage", label: "マイページ", icon: User, auth: true },
+  { href: "/admin", label: "管理画面", icon: Shield, auth: false },
 ];
 
 export default function Header() {
   const pathname = usePathname();
+  const router = useRouter();
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  useEffect(() => {
+    getCurrentUser().then((user) => {
+      setIsLoggedIn(!!user);
+    });
+  }, [pathname]);
+
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    try {
+      await logoutUser();
+    } catch {
+      // redirect throws, which is expected
+    }
+    setIsLoggedIn(false);
+    setLoggingOut(false);
+    router.push("/login");
+    router.refresh();
+  };
 
   return (
     <header className="bg-white border-b border-gray-200 shadow-sm">
@@ -28,7 +60,11 @@ export default function Header() {
 
           {/* Navigation */}
           <nav className="flex items-center gap-1">
+            {/* メインナビ */}
             {navItems.map((item) => {
+              // 認証が必要なリンクは、ログイン時のみ表示
+              if (item.auth && !isLoggedIn) return null;
+
               const isActive = pathname === item.href;
               const Icon = item.icon;
               return (
@@ -49,6 +85,43 @@ export default function Header() {
                 </Link>
               );
             })}
+
+            {/* 認証リンク */}
+            {isLoggedIn ? (
+              <button
+                onClick={handleLogout}
+                disabled={loggingOut}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors ml-1"
+              >
+                <LogOut className="w-4 h-4" />
+                <span className="hidden sm:inline">ログアウト</span>
+              </button>
+            ) : (
+              <>
+                <Link
+                  href="/login"
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    pathname === "/login"
+                      ? "bg-primary-light text-primary"
+                      : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                  }`}
+                >
+                  <LogIn className="w-4 h-4" />
+                  <span className="hidden sm:inline">ログイン</span>
+                </Link>
+                <Link
+                  href="/register"
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    pathname === "/register"
+                      ? "bg-primary-light text-primary"
+                      : "text-primary bg-primary-light hover:bg-primary/15"
+                  }`}
+                >
+                  <UserPlus className="w-4 h-4" />
+                  <span className="hidden sm:inline">新規登録</span>
+                </Link>
+              </>
+            )}
           </nav>
         </div>
       </div>

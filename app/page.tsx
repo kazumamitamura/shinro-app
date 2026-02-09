@@ -1,5 +1,12 @@
 import Link from "next/link";
-import { FileText, User, Shield, ArrowRight } from "lucide-react";
+import {
+  FileText,
+  User,
+  Shield,
+  ArrowRight,
+  UserPlus,
+  LogIn,
+} from "lucide-react";
 
 const features = [
   {
@@ -41,6 +48,24 @@ export default function HomePage() {
         </p>
       </div>
 
+      {/* Auth CTA */}
+      <div className="flex gap-3 mb-8">
+        <Link
+          href="/register"
+          className="flex-1 flex items-center justify-center gap-2 bg-primary text-white font-semibold py-3 px-6 rounded-xl hover:bg-primary-dark transition-colors shadow-sm"
+        >
+          <UserPlus className="w-5 h-5" />
+          新規登録
+        </Link>
+        <Link
+          href="/login"
+          className="flex-1 flex items-center justify-center gap-2 bg-white text-primary font-semibold py-3 px-6 rounded-xl border-2 border-primary hover:bg-primary-light transition-colors"
+        >
+          <LogIn className="w-5 h-5" />
+          ログイン
+        </Link>
+      </div>
+
       {/* Navigation Cards */}
       <div className="space-y-4">
         {features.map((feature) => {
@@ -77,7 +102,8 @@ export default function HomePage() {
           <li className="flex items-start gap-2">
             <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
             <span>
-              <strong>調査書</strong>：今年度の初回申請は1通目が無料、2通目以降は1通200円
+              <strong>調査書</strong>
+              ：今年度の初回申請は1通目が無料、2通目以降は1通200円
             </span>
           </li>
           <li className="flex items-start gap-2">
