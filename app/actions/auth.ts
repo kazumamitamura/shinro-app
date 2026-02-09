@@ -7,45 +7,47 @@ import type { RegisterFormData, StudentProfile } from "@/lib/types";
 import { redirect } from "next/navigation";
 
 /**
- * 新規ユーザー登録
+ * shinro_student_profiles に進路アプリ用プロフィールを作成し、認証メールを送信する。
+ * admin クライアントを使用して RLS を回避。
  */
-export async function registerUser(
+async function createShinroProfile(
+  userId: string,
   formData: RegisterFormData
 ): Promise<{ success: boolean; message: string }> {
-  const supabase = await createServerSupabaseClient();
+  const adminSupabase = createAdminSupabaseClient();
 
-  // 1. Supabase Auth でユーザー作成
-  const { data: authData, error: authError } = await supabase.auth.signUp({
-    email: formData.email,
-    password: formData.password,
-  });
+  // 既に shinro 用プロフィールが存在するかチェック
+  const { data: existing } = await adminSupabase
+    .from("shinro_student_profiles")
+    .select("id, email_verified")
+    .eq("user_id", userId)
+    .single();
 
-  if (authError) {
-    console.error("Registration error:", authError);
-    if (authError.message.includes("already registered")) {
+  if (existing) {
+    if ((existing as { email_verified: boolean }).email_verified) {
       return {
         success: false,
-        message: "このメールアドレスは既に登録されています。",
+        message:
+          "このアカウントは既に進路書類申請システムに登録済みです。ログインしてください。",
       };
     }
+    // 未認証のプロフィールが残っている → 認証メール再送
+    const typedExisting = existing as StudentProfile;
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    const verifyUrl = `${appUrl}/api/verify?token=${typedExisting.verification_token}`;
+    await sendVerificationEmail(formData.email, formData.student_name, verifyUrl);
     return {
-      success: false,
-      message: `登録に失敗しました: ${authError.message}`,
+      success: true,
+      message:
+        "認証メールを再送しました。メールに届いたリンクをクリックして登録を完了してください。",
     };
   }
 
-  if (!authData.user) {
-    return {
-      success: false,
-      message: "ユーザーの作成に失敗しました。",
-    };
-  }
-
-  // 2. student_profiles テーブルにプロフィールを保存
-  const { data: profile, error: profileError } = await supabase
+  // 新規プロフィール作成
+  const { data: profile, error: profileError } = await adminSupabase
     .from("shinro_student_profiles")
     .insert({
-      user_id: authData.user.id,
+      user_id: userId,
       email: formData.email,
       student_class: formData.student_class,
       student_number: formData.student_number,
@@ -65,7 +67,7 @@ export async function registerUser(
 
   const typedProfile = profile as StudentProfile;
 
-  // 3. Resend で認証メールを送信
+  // 認証メールを送信
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
   const verifyUrl = `${appUrl}/api/verify?token=${typedProfile.verification_token}`;
   await sendVerificationEmail(formData.email, formData.student_name, verifyUrl);
@@ -74,6 +76,58 @@ export async function registerUser(
     success: true,
     message:
       "登録を受け付けました。メールに届いた認証リンクをクリックして登録を完了してください。",
+  };
+}
+
+/**
+ * 新規ユーザー登録
+ *
+ * フロー:
+ *  A) auth.users に未登録 → signUp → shinro プロフィール作成 → 認証メール送信
+ *  B) auth.users に登録済み（他アプリで使用中）→ パスワードで認証
+ *     → shinro プロフィールが無ければ作成 → 認証メール送信
+ */
+export async function registerUser(
+  formData: RegisterFormData
+): Promise<{ success: boolean; message: string }> {
+  const supabase = await createServerSupabaseClient();
+
+  // ── パターン A: 新規ユーザーとして signUp を試みる ──
+  const { data: authData, error: authError } = await supabase.auth.signUp({
+    email: formData.email,
+    password: formData.password,
+  });
+
+  // signUp 成功（新規ユーザー）
+  if (!authError && authData.user) {
+    return createShinroProfile(authData.user.id, formData);
+  }
+
+  // ── パターン B: 既に auth.users に存在する → ログインを試みる ──
+  if (authError?.message?.includes("already registered")) {
+    const { data: loginData, error: loginError } =
+      await supabase.auth.signInWithPassword({
+        email: formData.email,
+        password: formData.password,
+      });
+
+    if (loginError || !loginData.user) {
+      return {
+        success: false,
+        message:
+          "このメールアドレスは他のアプリで登録済みです。同じパスワードを入力して進路アプリ用プロフィールを作成してください。",
+      };
+    }
+
+    // ログイン成功 → shinro プロフィールを作成
+    return createShinroProfile(loginData.user.id, formData);
+  }
+
+  // その他のエラー
+  console.error("Registration error:", authError);
+  return {
+    success: false,
+    message: `登録に失敗しました: ${authError?.message || "不明なエラー"}`,
   };
 }
 
